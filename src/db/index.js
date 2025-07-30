@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { DB_NAME } from "../constants.js";
 
+
 //we are using async await cauz db is in another continent
 const connectDB = async()=>{
     try {
