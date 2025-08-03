@@ -7,23 +7,28 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const uploadOnCloduinary = async (localfilePath) => {
+const uploadOnCloudinary = async (localfilePath) => {
     try {
-        if(!localfilePath){
-            throw new Error("No file path provided for upload");
-        }
-        //upload the file on cloudinary
-        const response=await cloudinary.uploader.upload(localfilePath,{
-            resource_type: "auto", // automatically detect resource type (image/video)
-        })
-        //file has been uploaded succesfully
-        console.log("File uploaded successfully to Cloudinary",response.url);
-        return response
+      if (!localfilePath) {
+        throw new Error("No file path provided for upload");
+      }
+  
+      const response = await cloudinary.uploader.upload(localfilePath, {
+        resource_type: "auto",
+      });
+  
+      fs.unlinkSync(localfilePath); // cleanup
+      return response;
     } catch (error) {
-        //handle error
-        fs.unlinkSync(localfilePath) //remove the locally saved temporary file as the upload operation failed
-        return null;
+      console.error("Cloudinary Upload Error:", error);
+  
+      // Only try to unlink if the file exists
+      if (fs.existsSync(localfilePath)) {
+        fs.unlinkSync(localfilePath);
+      }
+  
+      return null;
     }
-};
+  };
 
-export { uploadOnCloduinary };
+export { uploadOnCloudinary };
