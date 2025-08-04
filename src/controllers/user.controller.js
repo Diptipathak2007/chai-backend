@@ -3,6 +3,20 @@ import { ApiError } from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+
+const generateAccessAndRefreshTokens = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+    // Set the refresh token as a cookie
+    user.refreshToken = refreshToken;
+    user.save((validateBeforeSave = false));
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError(500, "Token generation failed");
+  }
+};
 const registerUser = asyncHandler(async (req, res) => {
   //get the user details from the frontend
   //validation-not empty
@@ -30,12 +44,14 @@ const registerUser = asyncHandler(async (req, res) => {
   }
   const avatarLocalPath = req.files?.avatar?.[0]?.path;
   let coverImageLocalPath;
-  if(req.files &&Array.isArray(req.files.coverImage) && req.files.coverImage.length>0){
+  if (
+    req.files &&
+    Array.isArray(req.files.coverImage) &&
+    req.files.coverImage.length > 0
+  ) {
     coverImageLocalPath = req.files.coverImage[0].path;
   }
 
-
-  
   if (!avatarLocalPath) {
     throw new ApiError(400, "Avatar is required");
   }
@@ -64,4 +80,44 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, createduser, "User created successfully"));
 });
 
-export { registerUser };
+const loginuser = asyncHandler(async (req, res) => {
+  //req body->data
+  //username or email
+  //find the user
+  //password check
+  //access and refresh token generation
+  //send cookies
+
+  const { email, username, password } = req.body;
+
+  if (!email || !username) {
+    throw new ApiError(400, "Email or username is required");
+  }
+
+  const user = await User.findOne({ $or: [{ email }, { username }] });
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const isPasswordValid = await user.isPasswordCorrect(password);
+  if (!isPasswordValid) {
+    throw new ApiError(401, "Invalid password");
+  }
+
+  const{accessToken,refreshToken}=await generateAccessAndRefreshTokens(user._id)
+  const loggedInUser = await User.findById(user._id).select(" -password -refreshToken");
+  const options={
+    httpOnly: true,
+    secure:true,//by adding this,the cookie will only be modifiable over the server
+  }
+  return res.status(200)
+  .cookie("refreshToken", refreshToken, options)
+  .cookie("accessToken", accessToken, options)
+  .json(new ApiResponse(200,{
+    user: loggedInUser,
+    accessToken,
+    refreshToken
+  }, "Login successful"));
+});
+
+export { registerUser, loginuser };
